@@ -4,25 +4,43 @@ This repository converts Slopes `.slopes` exports into GPX traces and analysis-r
 
 ## Getting started
 
-1. **Unpack your data**
-   - Unzip `GPSLogs.zip` (or any other `.slopes` files) into `data/GPSLogs/`.
-2. **Install dependencies**
+1. **Install dependencies**
    ```bash
-   python -m pip install -r requirements.txt
+   uv pip install -r requirements.txt
    ```
-3. **Generate processed data**
+   Or if using `uv run`:
    ```bash
-   python -m slopes_analysis.ingest --raw-dir data/GPSLogs --output-dir data/processed --write-gpx
+   uv run pip install -r requirements.txt
    ```
-   This writes:
+
+2. **Set up and process your data** (automatic setup)
+   ```bash
+   uv run python setup_data.py
+   ```
+   This script will:
+   - Unzip `GPSLogs.zip` into `data/GPSLogs/`
+   - Process all `.slopes` files to create analysis datasets
+   - Generate GPX files for each run
+   
+   **Manual setup** (if you prefer):
+   ```bash
+   # Unzip GPSLogs.zip into data/GPSLogs/
+   unzip GPSLogs.zip -d data/GPSLogs/
+   
+   # Process the files
+   uv run python -m slopes_analysis.ingest --raw-dir data/GPSLogs --output-dir data/processed --write-gpx
+   ```
+   
+   This creates:
    - `data/processed/run_summary.parquet` – one row per run/day
    - `data/processed/points.parquet` – every GPS point with run IDs attached
    - `data/processed/gpx/` – GPX traces you can load into other tools
-4. **Launch the explorer**
+
+3. **Launch the explorer**
    ```bash
-   streamlit run streamlit_app.py
+   uv run streamlit run streamlit_app.py
    ```
-   Use the "Rebuild processed data" button to refresh after adding new `.slopes` archives.
+   Use the "Rebuild processed data" button in the app to refresh after adding new `.slopes` archives.
 
 ## Project structure
 - `slopes_analysis/ingest.py` – converts `.slopes` exports to Parquet and GPX, computing core metrics.

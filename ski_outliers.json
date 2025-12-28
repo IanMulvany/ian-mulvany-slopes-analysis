@@ -1,0 +1,56 @@
+[
+  {
+    "id": "27d0b6e3-8445-46c8-b109-20df3f95b158__seg305",
+    "location": "Anzère",
+    "date": "2020-02-17",
+    "distance_m": 4440.1,
+    "avg_speed": 258.6,
+    "top_speed": 120,
+    "markedAt": "2025-12-28T16:39:48.898Z"
+  },
+  {
+    "id": "2bf283f9-3696-4703-aa89-e6860751936e__seg1",
+    "location": "Anzère",
+    "date": "2022-12-30",
+    "distance_m": 465.8,
+    "avg_speed": 203.8,
+    "top_speed": 120,
+    "markedAt": "2025-12-28T16:40:04.949Z"
+  },
+  {
+    "id": "3f781005-0261-430b-927a-a67cfd1f554e__seg0",
+    "location": "Anzère",
+    "date": "2018-12-31",
+    "distance_m": 3719.2,
+    "avg_speed": 1634.9,
+    "top_speed": 120,
+    "markedAt": "2025-12-28T16:40:33.456Z"
+  },
+  {
+    "id": "cc073192-24fa-44f9-9333-62994036265c__seg585",
+    "location": "Anzère",
+    "date": "2018-02-16",
+    "distance_m": 1151.9,
+    "avg_speed": 116.9,
+    "top_speed": 120,
+    "markedAt": "2025-12-28T16:40:42.351Z"
+  },
+  {
+    "id": "73104a03-44c5-4c54-90fc-1ee15e45f279__seg1012",
+    "location": "Anzère",
+    "date": "2022-12-27",
+    "distance_m": 667,
+    "avg_speed": 25.3,
+    "top_speed": 105.8,
+    "markedAt": "2025-12-28T16:40:47.727Z"
+  },
+  {
+    "id": "82c9091c-29bb-4b13-b6a5-7b56d7713d83__seg590",
+    "location": "Anzère",
+    "date": "2022-12-26",
+    "distance_m": 275.3,
+    "avg_speed": 247.9,
+    "top_speed": 92.4,
+    "markedAt": "2025-12-28T16:40:55.444Z"
+  }
+]

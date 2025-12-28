@@ -4,3 +4,6 @@ pyarrow
 gpxpy
 streamlit
 plotly
+pydeck
+fastapi
+uvicorn
