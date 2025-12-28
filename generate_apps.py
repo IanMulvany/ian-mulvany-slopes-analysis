@@ -587,6 +587,7 @@ def generate_data_cleaning_app(segments: list, stats: dict):
                     <div class="toggle-btn">
                         <button id="map-dark" class="active" onclick="setMapTheme('dark')">Dark</button>
                         <button id="map-light" onclick="setMapTheme('light')">Light</button>
+                        <button id="map-satellite" onclick="setMapTheme('satellite')">Satellite</button>
                     </div>
                 </div>
                 <button class="export-btn" onclick="exportOutliers()">Export Outliers JSON</button>
@@ -702,7 +703,8 @@ def generate_data_cleaning_app(segments: list, stats: dict):
 
         const TILE_URLS = {{
             dark: 'https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',
-            light: 'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png'
+            light: 'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png',
+            satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}'
         }};
 
         // Filter state
@@ -734,6 +736,7 @@ def generate_data_cleaning_app(segments: list, stats: dict):
 
             document.getElementById('map-dark').classList.toggle('active', mapTheme === 'dark');
             document.getElementById('map-light').classList.toggle('active', mapTheme === 'light');
+            document.getElementById('map-satellite').classList.toggle('active', mapTheme === 'satellite');
         }}
 
         function setMapTheme(theme) {{
@@ -745,6 +748,7 @@ def generate_data_cleaning_app(segments: list, stats: dict):
 
             document.getElementById('map-dark').classList.toggle('active', theme === 'dark');
             document.getElementById('map-light').classList.toggle('active', theme === 'light');
+            document.getElementById('map-satellite').classList.toggle('active', theme === 'satellite');
         }}
 
         function initSliders() {{
@@ -1146,9 +1150,20 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
 
         .app {{
             display: grid;
-            grid-template-columns: 380px 1fr;
+            grid-template-columns: 320px 1fr;
             grid-template-rows: auto 1fr;
             height: 100vh;
+            transition: grid-template-columns 0.3s ease;
+        }}
+
+        .app.sidebar-hidden {{
+            grid-template-columns: 0px 1fr;
+        }}
+
+        .app.sidebar-hidden .sidebar {{
+            overflow: hidden;
+            padding: 0;
+            border: none;
         }}
 
         header {{
@@ -1283,8 +1298,24 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         }}
 
         .cluster-info {{ flex: 1; }}
-        .cluster-name {{ font-weight: 600; font-size: 0.9rem; }}
-        .cluster-meta {{ font-size: 0.75rem; color: var(--text-secondary); }}
+        .cluster-name {{
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.15rem 0.3rem;
+            margin: -0.15rem -0.3rem;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }}
+        .cluster-name:hover {{ background: rgba(255,255,255,0.1); }}
+        .cluster-name .name-icon {{ font-size: 0.7rem; opacity: 0.7; }}
+        .cluster-name .name-text {{ flex: 1; }}
+        .cluster-name.machine-name {{ font-style: italic; opacity: 0.85; }}
+        .cluster-name.human-name {{ font-style: normal; }}
+        .cluster-meta {{ font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }}
 
         .cluster-mini-stats {{
             display: grid;
@@ -1313,14 +1344,25 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         .main-content {{
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow-y: auto;
+            min-height: 0;
         }}
 
         .top-section {{
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            height: 50%;
+            grid-template-columns: 1.8fr 1fr;
+            flex: 1 1 auto;
+            min-height: 300px;
             border-bottom: 1px solid var(--border);
+            transition: grid-template-columns 0.3s ease;
+        }}
+
+        .top-section.segments-hidden {{
+            grid-template-columns: 1fr;
+        }}
+
+        .top-section.segments-hidden .segment-timeline {{
+            display: none;
         }}
 
         #map {{
@@ -1356,6 +1398,100 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
 
         .timeline-segment:hover {{ background: #3d4f66; }}
         .timeline-segment.selected {{ border-color: var(--accent); }}
+        .timeline-segment.highlighted {{ border-color: var(--highlight-color, #ff6b6b); background: rgba(255, 107, 107, 0.15); }}
+        .timeline-segment.outlier {{ opacity: 0.5; }}
+        .timeline-segment.outlier::after {{
+            content: '⚠️';
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+        }}
+        .timeline-segment {{ position: relative; }}
+
+        .outlier-action {{
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: var(--warning);
+            color: #000;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none;
+        }}
+        .outlier-action:hover {{ background: #f59e0b; }}
+        .outlier-action.visible {{ display: flex; align-items: center; gap: 0.5rem; }}
+        .outlier-action.is-outlier {{ background: var(--danger); color: #fff; }}
+        .outlier-action.is-outlier:hover {{ background: #dc2626; }}
+
+        .panel-toggle {{
+            background: var(--bg-tertiary);
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.15s;
+        }}
+        .panel-toggle:hover {{ background: var(--bg-primary); color: var(--text-primary); }}
+
+        .sidebar-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }}
+        .sidebar-header h2 {{ font-size: 0.9rem; font-weight: 600; margin: 0; }}
+
+        .show-panel-btn {{
+            position: fixed;
+            top: 80px;
+            left: 15px;
+            z-index: 9999;
+            background: var(--accent);
+            border: none;
+            color: #fff;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }}
+        .show-panel-btn:hover {{ background: #2563eb; }}
+        .app.sidebar-hidden .show-panel-btn.show-clusters {{ display: block; }}
+
+        .show-segments-btn {{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: none;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+        }}
+        .show-segments-btn:hover {{ background: var(--bg-tertiary); }}
+        .top-section.segments-hidden .show-segments-btn {{ display: block; }}
+
+        .top-section {{ position: relative; }}
+        #map {{ position: relative; }}
 
         .timeline-date {{
             font-size: 0.75rem;
@@ -1383,7 +1519,9 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         .timeline-metric.rests .value {{ color: var(--purple); }}
 
         .charts-section {{
-            height: 50%;
+            flex: 0 0 auto;
+            min-height: 200px;
+            height: 220px;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 1px;
@@ -1612,6 +1750,7 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
                     <div class="toggle-btn">
                         <button id="map-dark" class="active" onclick="setMapTheme('dark')">Dark</button>
                         <button id="map-light" onclick="setMapTheme('light')">Light</button>
+                        <button id="map-satellite" onclick="setMapTheme('satellite')">Satellite</button>
                     </div>
                 </div>
                 <button class="settings-btn" onclick="openSettings()">
@@ -1620,7 +1759,13 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
             </div>
         </header>
 
+        <button class="show-panel-btn show-clusters" onclick="toggleSidebar()">◀ Show Clusters</button>
+
         <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Clusters</h2>
+                <button class="panel-toggle" onclick="toggleSidebar()">Hide ▶</button>
+            </div>
             <div class="cluster-stats">
                 <span><span class="stat-value" id="cluster-count">-</span> clusters</span>
                 <span><span class="stat-value" id="multi-run-count">-</span> with multiple runs</span>
@@ -1629,7 +1774,8 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         </aside>
 
         <main class="main-content">
-            <div class="top-section">
+            <div class="top-section" id="top-section">
+                <button class="show-segments-btn" onclick="toggleSegments()">◀ Show Segments</button>
                 <div id="map"></div>
                 <div class="segment-timeline" id="segment-timeline">
                     <div class="no-cluster-selected">Select a cluster to view segments</div>
@@ -1693,6 +1839,11 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         </div>
     </div>
 
+    <button class="outlier-action" id="outlier-action" onclick="toggleOutlierStatus()">
+        <span id="outlier-action-icon">⚠️</span>
+        <span id="outlier-action-text">Mark as Outlier</span>
+    </button>
+
     <script>
         const allSegments = {segments_json};
         const stats = {stats_json};
@@ -1705,18 +1856,293 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         let clusters = [];
         let selectedCluster = null;
         let selectedSegment = null;
+        let highlightedSegment = null;
         let clusterRadius = 100;
         let restThreshold = 10;
-        let map, trackLayer, tileLayer;
+        let map, trackLayer, tileLayer, highlightLayer;
         let mapTheme = localStorage.getItem('mapTheme') || 'dark';
         let outliers = JSON.parse(localStorage.getItem('ski_outliers') || '{{}}');
         let hideOutliers = localStorage.getItem('hideOutliers') === 'true';
         let filteredSegments = [];
+        let sidebarVisible = true;
+        let segmentsVisible = true;
+
+        // Cluster naming system - hierarchical names that work across radius changes
+        let clusterNames = JSON.parse(localStorage.getItem('cluster_names') || '{{}}');
 
         const TILE_URLS = {{
             dark: 'https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',
-            light: 'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png'
+            light: 'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png',
+            satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}'
         }};
+
+        // ============ PANEL VISIBILITY CONTROLS ============
+
+        function toggleSidebar() {{
+            sidebarVisible = !sidebarVisible;
+            document.querySelector('.app').classList.toggle('sidebar-hidden', !sidebarVisible);
+            setTimeout(() => map.invalidateSize(), 350);
+        }}
+
+        function toggleSegments() {{
+            segmentsVisible = !segmentsVisible;
+            document.getElementById('top-section').classList.toggle('segments-hidden', !segmentsVisible);
+            setTimeout(() => map.invalidateSize(), 350);
+        }}
+
+        // ============ SEGMENT HIGHLIGHTING ============
+
+        function getComplementaryColor(hexColor) {{
+            // Convert hex to RGB, shift hue by 180 degrees
+            const r = parseInt(hexColor.slice(1, 3), 16);
+            const g = parseInt(hexColor.slice(3, 5), 16);
+            const b = parseInt(hexColor.slice(5, 7), 16);
+
+            // Convert to HSL
+            const max = Math.max(r, g, b) / 255;
+            const min = Math.min(r, g, b) / 255;
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {{
+                h = s = 0;
+            }} else {{
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                const rn = r / 255, gn = g / 255, bn = b / 255;
+                if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+                else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+                else h = ((rn - gn) / d + 4) / 6;
+            }}
+
+            // Shift hue by 180 degrees and increase saturation
+            h = (h + 0.5) % 1;
+            s = Math.min(1, s * 1.2);
+            l = Math.max(0.4, Math.min(0.6, l));
+
+            // Convert back to RGB
+            const hue2rgb = (p, q, t) => {{
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            }};
+
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            const rOut = Math.round(hue2rgb(p, q, h + 1/3) * 255);
+            const gOut = Math.round(hue2rgb(p, q, h) * 255);
+            const bOut = Math.round(hue2rgb(p, q, h - 1/3) * 255);
+
+            return `#${{rOut.toString(16).padStart(2, '0')}}${{gOut.toString(16).padStart(2, '0')}}${{bOut.toString(16).padStart(2, '0')}}`;
+        }}
+
+        function toggleSegmentHighlight(segmentId) {{
+            const cluster = clusters.find(c => c.id === selectedCluster);
+            if (!cluster) return;
+
+            if (highlightedSegment === segmentId) {{
+                // Unhighlight
+                highlightedSegment = null;
+                highlightLayer.clearLayers();
+            }} else {{
+                // Highlight this segment
+                highlightedSegment = segmentId;
+                const segment = cluster.segments.find(s => s.id === segmentId);
+                if (segment && segment.track) {{
+                    highlightLayer.clearLayers();
+                    const highlightColor = getComplementaryColor(cluster.color);
+                    const coords = segment.track.map(p => [p.lat, p.lng]);
+                    const line = L.polyline(coords, {{
+                        color: highlightColor,
+                        weight: 6,
+                        opacity: 1
+                    }});
+                    highlightLayer.addLayer(line);
+
+                    // Add markers at start and end
+                    L.circleMarker(coords[0], {{ radius: 8, color: highlightColor, fillColor: '#fff', fillOpacity: 1, weight: 3 }}).addTo(highlightLayer);
+                    L.circleMarker(coords[coords.length - 1], {{ radius: 8, color: highlightColor, fillColor: '#000', fillOpacity: 1, weight: 3 }}).addTo(highlightLayer);
+                }}
+            }}
+
+            // Update timeline UI
+            document.querySelectorAll('.timeline-segment').forEach(el => {{
+                el.classList.toggle('highlighted', el.dataset.id === highlightedSegment);
+            }});
+
+            // Show/hide outlier action button
+            updateOutlierActionButton();
+        }}
+
+        function updateOutlierActionButton() {{
+            const btn = document.getElementById('outlier-action');
+            const icon = document.getElementById('outlier-action-icon');
+            const text = document.getElementById('outlier-action-text');
+
+            if (highlightedSegment) {{
+                const isOutlier = outliers[highlightedSegment];
+                btn.classList.add('visible');
+                btn.classList.toggle('is-outlier', isOutlier);
+                icon.textContent = isOutlier ? '✓' : '⚠️';
+                text.textContent = isOutlier ? 'Remove Outlier' : 'Mark as Outlier';
+            }} else {{
+                btn.classList.remove('visible');
+            }}
+        }}
+
+        function toggleOutlierStatus() {{
+            if (!highlightedSegment) return;
+
+            if (outliers[highlightedSegment]) {{
+                delete outliers[highlightedSegment];
+            }} else {{
+                outliers[highlightedSegment] = true;
+            }}
+
+            localStorage.setItem('ski_outliers', JSON.stringify(outliers));
+            updateOutlierActionButton();
+            updateOutlierUI();
+
+            // Update timeline segment visual
+            document.querySelectorAll('.timeline-segment').forEach(el => {{
+                el.classList.toggle('outlier', !!outliers[el.dataset.id]);
+            }});
+
+            // If hiding outliers is enabled and we just marked one, refresh the view
+            if (hideOutliers && outliers[highlightedSegment]) {{
+                // Clear highlight first
+                highlightedSegment = null;
+                highlightLayer.clearLayers();
+                updateOutlierActionButton();
+
+                // Recompute everything
+                applyFilters();
+
+                // If the cluster still exists, reselect it
+                if (selectedCluster !== null) {{
+                    const cluster = clusters.find(c => c.id === selectedCluster);
+                    if (cluster) {{
+                        updateClusterView(cluster);
+                    }} else {{
+                        clearClusterView();
+                    }}
+                }}
+            }}
+        }}
+
+        // ============ CLUSTER NAMING SYSTEM ============
+        // Names are stored with anchor segments - a name applies when all anchor segments are in the same cluster
+
+        function getClusterSignature(segmentIds) {{
+            // Create a unique signature for a set of segments
+            return segmentIds.slice().sort().join('|');
+        }}
+
+        function saveClusterNames() {{
+            localStorage.setItem('cluster_names', JSON.stringify(clusterNames));
+        }}
+
+        function getClusterName(cluster) {{
+            // Find the best name for this cluster
+            // Priority: human names > machine names, more specific (more anchors) > less specific
+            const clusterSegIds = new Set(cluster.segments.map(s => s.id));
+
+            let bestName = null;
+            let bestScore = -1;
+
+            for (const [key, nameData] of Object.entries(clusterNames)) {{
+                // Check if all anchor segments are in this cluster
+                const anchors = nameData.anchorSegments || [];
+                const allAnchorsPresent = anchors.every(id => clusterSegIds.has(id));
+
+                if (allAnchorsPresent && anchors.length > 0) {{
+                    // Score: human names get +1000, then by number of anchors (more specific = better)
+                    const score = (nameData.source === 'human' ? 1000 : 0) + anchors.length;
+                    if (score > bestScore) {{
+                        bestScore = score;
+                        bestName = nameData;
+                    }}
+                }}
+            }}
+
+            return bestName;
+        }}
+
+        function setClusterName(cluster, name, source = 'human') {{
+            // Use first 2 segments as anchors (enough to identify the cluster without being too specific)
+            const anchorSegments = cluster.segments.slice(0, 2).map(s => s.id);
+            const key = getClusterSignature(anchorSegments);
+
+            // Remove any existing name with same anchors
+            for (const [k, v] of Object.entries(clusterNames)) {{
+                if (getClusterSignature(v.anchorSegments || []) === key) {{
+                    delete clusterNames[k];
+                }}
+            }}
+
+            clusterNames[key] = {{
+                name: name,
+                anchorSegments: anchorSegments,
+                definedAtRadius: clusterRadius,
+                source: source,
+                location: cluster.location,
+                createdAt: Date.now()
+            }};
+
+            saveClusterNames();
+        }}
+
+        function inferMachineNames() {{
+            // Generate machine names for clusters that don't have human names
+            // Group by location and assign route numbers
+            const locationCounts = {{}};
+
+            clusters.forEach(cluster => {{
+                const existingName = getClusterName(cluster);
+                if (existingName && existingName.source === 'human') return; // Skip if human-named
+
+                const loc = cluster.location || 'Unknown';
+                locationCounts[loc] = (locationCounts[loc] || 0) + 1;
+
+                const machineName = `${{loc}} Route #${{locationCounts[loc]}}`;
+                setClusterName(cluster, machineName, 'machine');
+            }});
+        }}
+
+        function getDisplayName(cluster) {{
+            const nameData = getClusterName(cluster);
+            if (nameData) {{
+                return {{
+                    name: nameData.name,
+                    source: nameData.source,
+                    definedAtRadius: nameData.definedAtRadius
+                }};
+            }}
+            // Fallback - should rarely happen
+            return {{
+                name: `${{cluster.location}} Route #${{cluster.id + 1}}`,
+                source: 'fallback',
+                definedAtRadius: null
+            }};
+        }}
+
+        function editClusterName(clusterId, event) {{
+            event.stopPropagation();
+            const cluster = clusters.find(c => c.id === clusterId);
+            if (!cluster) return;
+
+            const currentName = getDisplayName(cluster);
+            const newName = prompt('Enter cluster name:', currentName.name);
+
+            if (newName && newName.trim() && newName !== currentName.name) {{
+                setClusterName(cluster, newName.trim(), 'human');
+                renderClusters();
+            }}
+        }}
+
+        // ============ END CLUSTER NAMING SYSTEM ============
 
         document.addEventListener('DOMContentLoaded', init);
 
@@ -1775,9 +2201,11 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
             map = L.map('map', {{ zoomControl: true, attributionControl: false }}).setView([46.31, 7.39], 12);
             tileLayer = L.tileLayer(TILE_URLS[mapTheme], {{ maxZoom: 19 }}).addTo(map);
             trackLayer = L.layerGroup().addTo(map);
+            highlightLayer = L.layerGroup().addTo(map);
 
             document.getElementById('map-dark').classList.toggle('active', mapTheme === 'dark');
             document.getElementById('map-light').classList.toggle('active', mapTheme === 'light');
+            document.getElementById('map-satellite').classList.toggle('active', mapTheme === 'satellite');
         }}
 
         function setMapTheme(theme) {{
@@ -1789,6 +2217,7 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
 
             document.getElementById('map-dark').classList.toggle('active', theme === 'dark');
             document.getElementById('map-light').classList.toggle('active', theme === 'light');
+            document.getElementById('map-satellite').classList.toggle('active', theme === 'satellite');
         }}
 
         function setupEventListeners() {{
@@ -1901,6 +2330,9 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
                     }};
                 }});
 
+            // Infer machine names for clusters without human names
+            inferMachineNames();
+
             document.getElementById('cluster-count').textContent = clusters.length;
             document.getElementById('multi-run-count').textContent = clusters.filter(c => c.segments.length >= 2).length;
         }}
@@ -1913,13 +2345,22 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
                 return;
             }}
 
-            list.innerHTML = clusters.map(cluster => `
+            list.innerHTML = clusters.map(cluster => {{
+                const displayName = getDisplayName(cluster);
+                const nameClass = displayName.source === 'human' ? 'human-name' : 'machine-name';
+                const nameIcon = displayName.source === 'human' ? '✏️' : '🤖';
+                const radiusNote = displayName.definedAtRadius ? ` @${{displayName.definedAtRadius}}m` : '';
+
+                return `
                 <div class="cluster-card ${{selectedCluster === cluster.id ? 'selected' : ''}}"
                      data-id="${{cluster.id}}" onclick="selectCluster(${{cluster.id}})">
                     <div class="cluster-header">
                         <div class="cluster-color" style="background: ${{cluster.color}}"></div>
                         <div class="cluster-info">
-                            <div class="cluster-name">${{cluster.location}} Route #${{cluster.id + 1}}</div>
+                            <div class="cluster-name ${{nameClass}}" onclick="editClusterName(${{cluster.id}}, event)" title="Click to rename${{radiusNote}}">
+                                <span class="name-icon">${{nameIcon}}</span>
+                                <span class="name-text">${{displayName.name}}</span>
+                            </div>
                             <div class="cluster-meta">
                                 ${{cluster.segments.length}} runs · ${{cluster.years.join(', ')}}
                             </div>
@@ -1944,12 +2385,14 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `}}).join('');
         }}
 
         function selectCluster(id) {{
             selectedCluster = id;
             selectedSegment = null;
+            highlightedSegment = null;
+            if (highlightLayer) highlightLayer.clearLayers();
 
             document.querySelectorAll('.cluster-card').forEach(card => {{
                 card.classList.toggle('selected', parseInt(card.dataset.id) === id);
@@ -1967,7 +2410,9 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
 
         function clearClusterView() {{
             selectedCluster = null;
+            highlightedSegment = null;
             trackLayer.clearLayers();
+            if (highlightLayer) highlightLayer.clearLayers();
             document.getElementById('segment-timeline').innerHTML =
                 '<div class="no-cluster-selected">Select a cluster to view segments</div>';
             ['distance', 'avg-speed', 'top-speed', 'rests'].forEach(id => {{
@@ -2011,10 +2456,12 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
             timeline.innerHTML = `
                 <div class="timeline-header">
                     <span>Segments over time (${{cluster.segments.length}} runs)</span>
+                    <button class="panel-toggle" onclick="toggleSegments()">Hide ▶</button>
                 </div>
                 ${{cluster.segments.map(seg => `
-                    <div class="timeline-segment ${{selectedSegment === seg.id ? 'selected' : ''}}"
-                         onclick="selectSegmentInCluster('${{seg.id}}', clusters[${{cluster.id}}])">
+                    <div class="timeline-segment ${{selectedSegment === seg.id ? 'selected' : ''}} ${{highlightedSegment === seg.id ? 'highlighted' : ''}} ${{outliers[seg.id] ? 'outlier' : ''}}"
+                         data-id="${{seg.id}}"
+                         onclick="toggleSegmentHighlight('${{seg.id}}')">
                         <div class="timeline-date">${{seg.date}}</div>
                         <div class="timeline-metrics">
                             <div class="timeline-metric distance">

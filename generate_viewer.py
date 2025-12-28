@@ -642,6 +642,7 @@ def generate_html(segments: list, stats: dict) -> str:
                 <div class="toggle-btn">
                     <button id="map-dark" class="active" onclick="setMapTheme('dark')">Dark</button>
                     <button id="map-light" onclick="setMapTheme('light')">Light</button>
+                    <button id="map-satellite" onclick="setMapTheme('satellite')">Satellite</button>
                 </div>
             </div>
             <button class="settings-btn" onclick="openSettings()">
@@ -770,7 +771,8 @@ def generate_html(segments: list, stats: dict) -> str:
 
         const TILE_URLS = {{
             dark: 'https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',
-            light: 'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png'
+            light: 'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png',
+            satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}'
         }};
 
         document.addEventListener('DOMContentLoaded', init);
@@ -826,6 +828,7 @@ def generate_html(segments: list, stats: dict) -> str:
             // Set initial button state
             document.getElementById('map-dark').classList.toggle('active', mapTheme === 'dark');
             document.getElementById('map-light').classList.toggle('active', mapTheme === 'light');
+            document.getElementById('map-satellite').classList.toggle('active', mapTheme === 'satellite');
         }}
 
         function setMapTheme(theme) {{
@@ -837,6 +840,7 @@ def generate_html(segments: list, stats: dict) -> str:
 
             document.getElementById('map-dark').classList.toggle('active', theme === 'dark');
             document.getElementById('map-light').classList.toggle('active', theme === 'light');
+            document.getElementById('map-satellite').classList.toggle('active', theme === 'satellite');
         }}
 
         function populateFilters() {{
