@@ -4,11 +4,15 @@
 import json
 from pathlib import Path
 from slopes_analysis.analysis import load_datasets, segment_downhill_runs
+from slopes_analysis.annotations import (
+    get_outliers_dict,
+    DEFAULT_ANNOTATED_DIR,
+)
 import pandas as pd
 import numpy as np
 
 
-def generate_all_apps():
+def generate_all_apps(annotated_dir: Path = DEFAULT_ANNOTATED_DIR):
     """Generate all analysis apps."""
     print("Loading datasets...")
     summary_df, points_df = load_datasets()
@@ -17,6 +21,25 @@ def generate_all_apps():
     segments_df, labeled_points_df = segment_downhill_runs(points_df)
 
     print(f"Found {len(segments_df)} downhill segments")
+
+    # Load outliers from annotations
+    print(f"Loading annotations from {annotated_dir}...")
+    outliers_dict = get_outliers_dict(annotated_dir)
+    print(f"Loaded {len(outliers_dict)} outlier markings")
+
+    # Convert outliers to serializable format
+    outliers_data = {
+        seg_id: {
+            "id": o.id,
+            "location": o.location,
+            "date": o.date,
+            "distance_m": o.distance_m,
+            "avg_speed": o.avg_speed,
+            "top_speed": o.top_speed,
+            "markedAt": o.marked_at,
+        }
+        for seg_id, o in outliers_dict.items()
+    }
 
     # Prepare segment data with detailed GPS tracks for rest analysis
     segments_data = []
@@ -89,19 +112,20 @@ def generate_all_apps():
 
     # Generate apps
     print("Generating Data Cleaning App...")
-    generate_data_cleaning_app(segments_data, stats)
+    generate_data_cleaning_app(segments_data, stats, outliers_data)
 
     print("Generating Cluster Analysis App...")
-    generate_cluster_analysis_app(segments_data, stats)
+    generate_cluster_analysis_app(segments_data, stats, outliers_data)
 
     print("Done!")
 
 
-def generate_data_cleaning_app(segments: list, stats: dict):
+def generate_data_cleaning_app(segments: list, stats: dict, outliers: dict = None):
     """Generate the data cleaning/outlier detection app."""
 
     segments_json = json.dumps(segments)
     stats_json = json.dumps(stats)
+    outliers_json = json.dumps(outliers or {})
 
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -690,9 +714,10 @@ def generate_data_cleaning_app(segments: list, stats: dict):
     <script>
         const allSegments = {segments_json};
         const stats = {stats_json};
+        const embeddedOutliers = {outliers_json};
 
-        // State
-        let outliers = JSON.parse(localStorage.getItem('ski_outliers') || '{{}}');
+        // State - merge embedded outliers with any localStorage outliers
+        let outliers = {{...JSON.parse(localStorage.getItem('ski_outliers') || '{{}}'), ...embeddedOutliers}};
         let filteredSegments = [];
         let selectedSegment = null;
         let currentSort = 'date';
@@ -1109,11 +1134,12 @@ def generate_data_cleaning_app(segments: list, stats: dict):
     print(f"  Created: data_cleaning_app.html")
 
 
-def generate_cluster_analysis_app(segments: list, stats: dict):
+def generate_cluster_analysis_app(segments: list, stats: dict, outliers: dict = None):
     """Generate the cluster analysis app with performance trends."""
 
     segments_json = json.dumps(segments)
     stats_json = json.dumps(stats)
+    outliers_json = json.dumps(outliers or {})
 
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -1847,6 +1873,7 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
     <script>
         const allSegments = {segments_json};
         const stats = {stats_json};
+        const embeddedOutliers = {outliers_json};
 
         const COLORS = [
             '#38bdf8', '#4ade80', '#fbbf24', '#f87171', '#a78bfa',
@@ -1861,7 +1888,8 @@ def generate_cluster_analysis_app(segments: list, stats: dict):
         let restThreshold = 10;
         let map, trackLayer, tileLayer, highlightLayer;
         let mapTheme = localStorage.getItem('mapTheme') || 'dark';
-        let outliers = JSON.parse(localStorage.getItem('ski_outliers') || '{{}}');
+        // Merge embedded outliers with any localStorage outliers
+        let outliers = {{...JSON.parse(localStorage.getItem('ski_outliers') || '{{}}'), ...embeddedOutliers}};
         let hideOutliers = localStorage.getItem('hideOutliers') === 'true';
         let filteredSegments = [];
         let sidebarVisible = true;

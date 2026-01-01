@@ -4,6 +4,10 @@
 import json
 from pathlib import Path
 from slopes_analysis.analysis import load_datasets, segment_downhill_runs
+from slopes_analysis.annotations import (
+    get_outliers_dict,
+    DEFAULT_ANNOTATED_DIR,
+)
 import pandas as pd
 import numpy as np
 
@@ -18,7 +22,10 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return R * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 
 
-def generate_html_viewer(output_path: Path = Path("ski_segments_viewer.html")):
+def generate_html_viewer(
+    output_path: Path = Path("ski_segments_viewer.html"),
+    annotated_dir: Path = DEFAULT_ANNOTATED_DIR,
+):
     """Generate a self-contained HTML viewer with embedded segment data."""
 
     print("Loading datasets...")
@@ -28,6 +35,11 @@ def generate_html_viewer(output_path: Path = Path("ski_segments_viewer.html")):
     segments_df, labeled_points_df = segment_downhill_runs(points_df)
 
     print(f"Found {len(segments_df)} downhill segments")
+
+    # Load outliers from annotations
+    print(f"Loading annotations from {annotated_dir}...")
+    outliers_dict = get_outliers_dict(annotated_dir)
+    print(f"Loaded {len(outliers_dict)} outlier markings")
 
     # Prepare segment data with GPS tracks
     segments_data = []
@@ -88,18 +100,33 @@ def generate_html_viewer(output_path: Path = Path("ski_segments_viewer.html")):
         "years": years,
     }
 
-    html_content = generate_html(segments_data, stats)
+    # Convert outliers to serializable format
+    outliers_data = {
+        seg_id: {
+            "id": o.id,
+            "location": o.location,
+            "date": o.date,
+            "distance_m": o.distance_m,
+            "avg_speed": o.avg_speed,
+            "top_speed": o.top_speed,
+            "markedAt": o.marked_at,
+        }
+        for seg_id, o in outliers_dict.items()
+    }
+
+    html_content = generate_html(segments_data, stats, outliers_data)
 
     output_path.write_text(html_content)
     print(f"Viewer generated: {output_path.absolute()}")
     return output_path
 
 
-def generate_html(segments: list, stats: dict) -> str:
+def generate_html(segments: list, stats: dict, outliers: dict = None) -> str:
     """Generate the complete HTML document."""
 
     segments_json = json.dumps(segments)
     stats_json = json.dumps(stats)
+    outliers_json = json.dumps(outliers or {})
 
     return f'''<!DOCTYPE html>
 <html lang="en">
@@ -749,6 +776,7 @@ def generate_html(segments: list, stats: dict) -> str:
     <script>
         const allSegments = {segments_json};
         const stats = {stats_json};
+        const embeddedOutliers = {outliers_json};
 
         // Cluster colors
         const COLORS = [
@@ -766,7 +794,8 @@ def generate_html(segments: list, stats: dict) -> str:
         let clusters = [];
         let map, trackLayer, tileLayer;
         let mapTheme = localStorage.getItem('mapTheme') || 'dark';
-        let outliers = JSON.parse(localStorage.getItem('ski_outliers') || '{{}}');
+        // Merge embedded outliers with any localStorage outliers (embedded takes precedence as it's from annotated dir)
+        let outliers = {{...JSON.parse(localStorage.getItem('ski_outliers') || '{{}}'), ...embeddedOutliers}};
         let hideOutliers = localStorage.getItem('hideOutliers') === 'true';
 
         const TILE_URLS = {{
