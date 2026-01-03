@@ -1,0 +1,4 @@
+- add new data form dec 25 run.
+- create stand alone year analyts
+- annotate runs
+- blog
