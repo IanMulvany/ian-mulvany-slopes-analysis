@@ -117,6 +117,9 @@ def generate_all_apps(annotated_dir: Path = DEFAULT_ANNOTATED_DIR):
     print("Generating Cluster Analysis App...")
     generate_cluster_analysis_app(segments_data, stats, outliers_data)
 
+    print("Generating Yearly Review App...")
+    generate_yearly_review_app(segments_data, stats, outliers_data)
+
     print("Done!")
 
 
@@ -2595,6 +2598,482 @@ def generate_cluster_analysis_app(segments: list, stats: dict, outliers: dict = 
 
     Path("cluster_analysis_app.html").write_text(html)
     print(f"  Created: cluster_analysis_app.html")
+
+
+def generate_yearly_review_app(segments: list, stats: dict, outliers: dict = None):
+    """Generate a yearly review app showing year-by-year comparison."""
+
+    # Aggregate data by year (excluding outliers)
+    outliers = outliers or {}
+    yearly_data = {}
+
+    for seg in segments:
+        if seg["id"] in outliers:
+            continue
+        year = seg["year"]
+        if year == 0:
+            continue
+
+        if year not in yearly_data:
+            yearly_data[year] = {
+                "year": year,
+                "days": set(),
+                "segments": [],
+                "total_distance_m": 0,
+                "total_vertical_m": 0,
+                "total_duration_s": 0,
+                "speeds": [],
+                "top_speeds": [],
+                "locations": set(),
+            }
+
+        yearly_data[year]["days"].add(seg["date"])
+        yearly_data[year]["segments"].append(seg)
+        yearly_data[year]["total_distance_m"] += seg["distance_m"]
+        yearly_data[year]["total_vertical_m"] += seg["vertical_m"]
+        yearly_data[year]["total_duration_s"] += seg["duration_s"]
+        yearly_data[year]["speeds"].append(seg["avg_speed"])
+        yearly_data[year]["top_speeds"].append(seg["top_speed"])
+        yearly_data[year]["locations"].add(seg["location"])
+
+    # Compute summary stats for each year
+    yearly_summary = []
+    for year in sorted(yearly_data.keys()):
+        data = yearly_data[year]
+        num_segments = len(data["segments"])
+        yearly_summary.append({
+            "year": year,
+            "days": len(data["days"]),
+            "segments": num_segments,
+            "total_distance_km": round(data["total_distance_m"] / 1000, 1),
+            "total_vertical_m": round(data["total_vertical_m"], 0),
+            "total_duration_h": round(data["total_duration_s"] / 3600, 1),
+            "avg_speed": round(sum(data["speeds"]) / num_segments, 1) if num_segments else 0,
+            "top_speed": round(max(data["top_speeds"]), 1) if data["top_speeds"] else 0,
+            "avg_distance_km": round(data["total_distance_m"] / num_segments / 1000, 2) if num_segments else 0,
+            "avg_vertical_m": round(data["total_vertical_m"] / num_segments, 0) if num_segments else 0,
+            "segments_per_day": round(num_segments / len(data["days"]), 1) if data["days"] else 0,
+            "locations": sorted(list(data["locations"])),
+        })
+
+    yearly_json = json.dumps(yearly_summary)
+
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ski Yearly Review</title>
+    <style>
+        :root {{
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --purple: #a78bfa;
+            --border: #475569;
+        }}
+
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 2rem;
+        }}
+
+        header {{
+            text-align: center;
+            margin-bottom: 2rem;
+        }}
+
+        header h1 {{
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }}
+
+        header p {{
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }}
+
+        .summary-bar {{
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }}
+
+        .summary-stat {{
+            text-align: center;
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }}
+
+        .summary-stat .value {{
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent);
+        }}
+
+        .summary-stat .label {{
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }}
+
+        .years-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }}
+
+        .year-card {{
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }}
+
+        .year-card:hover {{
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }}
+
+        .year-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }}
+
+        .year-title {{
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }}
+
+        .year-days {{
+            background: var(--bg-tertiary);
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            font-size: 0.9rem;
+        }}
+
+        .year-days .count {{
+            font-weight: 700;
+            color: var(--success);
+        }}
+
+        .locations {{
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }}
+
+        .location-tag {{
+            background: var(--bg-tertiary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }}
+
+        .metrics-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }}
+
+        .metric {{
+            background: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+        }}
+
+        .metric .value {{
+            font-size: 1.5rem;
+            font-weight: 700;
+        }}
+
+        .metric .label {{
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.25rem;
+        }}
+
+        .metric.segments .value {{ color: var(--accent); }}
+        .metric.distance .value {{ color: var(--success); }}
+        .metric.vertical .value {{ color: var(--warning); }}
+        .metric.avg-speed .value {{ color: var(--purple); }}
+        .metric.top-speed .value {{ color: var(--danger); }}
+        .metric.time .value {{ color: var(--accent); }}
+
+        .secondary-metrics {{
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }}
+
+        .mini-metric {{
+            text-align: center;
+        }}
+
+        .mini-metric .value {{
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }}
+
+        .mini-metric .label {{
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }}
+
+        .charts-section {{
+            max-width: 1400px;
+            margin: 2rem auto 0;
+        }}
+
+        .charts-section h2 {{
+            text-align: center;
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-secondary);
+        }}
+
+        .charts-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }}
+
+        .chart-card {{
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+        }}
+
+        .chart-title {{
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }}
+
+        .chart-container {{
+            height: 200px;
+            position: relative;
+        }}
+
+        .chart-container svg {{
+            width: 100%;
+            height: 100%;
+        }}
+
+        .bar {{ transition: opacity 0.2s; }}
+        .bar:hover {{ opacity: 0.8; }}
+        .chart-label {{ fill: var(--text-secondary); font-size: 11px; }}
+        .chart-value {{ fill: var(--text-primary); font-size: 10px; font-weight: 600; }}
+        .chart-grid {{ stroke: var(--border); stroke-width: 1; }}
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Ski Yearly Review</h1>
+        <p>Year-by-year performance comparison</p>
+    </header>
+
+    <div class="summary-bar" id="summary-bar"></div>
+    <div class="years-grid" id="years-grid"></div>
+
+    <div class="charts-section">
+        <h2>Trends Over Time</h2>
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-title">Total Distance (km)</div>
+                <div class="chart-container" id="distance-chart"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Ski Days</div>
+                <div class="chart-container" id="days-chart"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Segments per Day</div>
+                <div class="chart-container" id="segments-day-chart"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Average Speed (km/h)</div>
+                <div class="chart-container" id="speed-chart"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const yearlyData = {yearly_json};
+
+        // Calculate totals for summary bar
+        const totals = yearlyData.reduce((acc, y) => ({{
+            days: acc.days + y.days,
+            segments: acc.segments + y.segments,
+            distance: acc.distance + y.total_distance_km,
+            vertical: acc.vertical + y.total_vertical_m
+        }}), {{ days: 0, segments: 0, distance: 0, vertical: 0 }});
+
+        // Render summary bar
+        document.getElementById('summary-bar').innerHTML = `
+            <div class="summary-stat">
+                <div class="value">${{yearlyData.length}}</div>
+                <div class="label">Years</div>
+            </div>
+            <div class="summary-stat">
+                <div class="value">${{totals.days}}</div>
+                <div class="label">Total Ski Days</div>
+            </div>
+            <div class="summary-stat">
+                <div class="value">${{totals.segments}}</div>
+                <div class="label">Total Segments</div>
+            </div>
+            <div class="summary-stat">
+                <div class="value">${{totals.distance.toFixed(0)}}</div>
+                <div class="label">Total km</div>
+            </div>
+            <div class="summary-stat">
+                <div class="value">${{(totals.vertical / 1000).toFixed(1)}}</div>
+                <div class="label">Total Vertical (km)</div>
+            </div>
+        `;
+
+        // Render year cards
+        document.getElementById('years-grid').innerHTML = yearlyData.map(y => `
+            <div class="year-card">
+                <div class="year-header">
+                    <span class="year-title">${{y.year}}</span>
+                    <span class="year-days"><span class="count">${{y.days}}</span> days</span>
+                </div>
+                <div class="locations">
+                    ${{y.locations.map(loc => `<span class="location-tag">${{loc}}</span>`).join('')}}
+                </div>
+                <div class="metrics-grid">
+                    <div class="metric segments">
+                        <div class="value">${{y.segments}}</div>
+                        <div class="label">Segments</div>
+                    </div>
+                    <div class="metric distance">
+                        <div class="value">${{y.total_distance_km}}</div>
+                        <div class="label">Total km</div>
+                    </div>
+                    <div class="metric vertical">
+                        <div class="value">${{y.total_vertical_m.toLocaleString()}}</div>
+                        <div class="label">Vertical (m)</div>
+                    </div>
+                    <div class="metric time">
+                        <div class="value">${{y.total_duration_h}}</div>
+                        <div class="label">Hours</div>
+                    </div>
+                    <div class="metric avg-speed">
+                        <div class="value">${{y.avg_speed}}</div>
+                        <div class="label">Avg Speed</div>
+                    </div>
+                    <div class="metric top-speed">
+                        <div class="value">${{y.top_speed}}</div>
+                        <div class="label">Top Speed</div>
+                    </div>
+                </div>
+                <div class="secondary-metrics">
+                    <div class="mini-metric">
+                        <div class="value">${{y.avg_distance_km}}</div>
+                        <div class="label">Avg km/run</div>
+                    </div>
+                    <div class="mini-metric">
+                        <div class="value">${{y.avg_vertical_m}}</div>
+                        <div class="label">Avg vert/run</div>
+                    </div>
+                    <div class="mini-metric">
+                        <div class="value">${{y.segments_per_day}}</div>
+                        <div class="label">Runs/day</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Render bar charts
+        function renderBarChart(containerId, data, getValue, color, unit = '') {{
+            const container = document.getElementById(containerId);
+            const width = container.clientWidth || 300;
+            const height = container.clientHeight || 200;
+            const margin = {{ top: 20, right: 20, bottom: 35, left: 45 }};
+
+            const values = data.map(getValue);
+            const maxVal = Math.max(...values) * 1.1;
+            const barWidth = (width - margin.left - margin.right) / data.length - 8;
+
+            const xScale = i => margin.left + i * ((width - margin.left - margin.right) / data.length) + 4;
+            const yScale = v => height - margin.bottom - (v / maxVal) * (height - margin.top - margin.bottom);
+
+            container.innerHTML = `
+                <svg viewBox="0 0 ${{width}} ${{height}}">
+                    <!-- Grid lines -->
+                    <line class="chart-grid" x1="${{margin.left}}" y1="${{margin.top}}" x2="${{margin.left}}" y2="${{height - margin.bottom}}"/>
+                    <line class="chart-grid" x1="${{margin.left}}" y1="${{height - margin.bottom}}" x2="${{width - margin.right}}" y2="${{height - margin.bottom}}"/>
+
+                    <!-- Y axis labels -->
+                    <text class="chart-label" x="${{margin.left - 8}}" y="${{yScale(maxVal)}}" text-anchor="end" dominant-baseline="middle">${{maxVal.toFixed(0)}}${{unit}}</text>
+                    <text class="chart-label" x="${{margin.left - 8}}" y="${{yScale(0)}}" text-anchor="end" dominant-baseline="middle">0</text>
+
+                    <!-- Bars -->
+                    ${{data.map((d, i) => `
+                        <rect class="bar" x="${{xScale(i)}}" y="${{yScale(getValue(d))}}"
+                              width="${{barWidth}}" height="${{height - margin.bottom - yScale(getValue(d))}}"
+                              fill="${{color}}" rx="4">
+                            <title>${{d.year}}: ${{getValue(d).toFixed(1)}}${{unit}}</title>
+                        </rect>
+                        <text class="chart-value" x="${{xScale(i) + barWidth/2}}" y="${{yScale(getValue(d)) - 5}}"
+                              text-anchor="middle">${{getValue(d) >= 100 ? getValue(d).toFixed(0) : getValue(d).toFixed(1)}}</text>
+                        <text class="chart-label" x="${{xScale(i) + barWidth/2}}" y="${{height - 10}}"
+                              text-anchor="middle">${{d.year}}</text>
+                    `).join('')}}
+                </svg>
+            `;
+        }}
+
+        // Render all charts
+        renderBarChart('distance-chart', yearlyData, d => d.total_distance_km, '#4ade80', ' km');
+        renderBarChart('days-chart', yearlyData, d => d.days, '#38bdf8', '');
+        renderBarChart('segments-day-chart', yearlyData, d => d.segments_per_day, '#a78bfa', '');
+        renderBarChart('speed-chart', yearlyData, d => d.avg_speed, '#fbbf24', ' km/h');
+    </script>
+</body>
+</html>
+'''
+
+    Path("yearly_review_app.html").write_text(html)
+    print(f"  Created: yearly_review_app.html")
 
 
 if __name__ == "__main__":

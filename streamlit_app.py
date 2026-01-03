@@ -873,6 +873,14 @@ def main() -> None:
         "Use the button below to rebuild datasets if you've added new `.slopes` files."
     )
 
+    # Sidebar - Data Management
+    st.sidebar.markdown("### Data Management")
+    st.sidebar.markdown(
+        "📁 [Open Data Manager](./streamlit_data_manager.py) - "
+        "Add new files, view processing status"
+    )
+    st.sidebar.markdown("---")
+
     if st.sidebar.button("Rebuild processed data", help="Run the converter and refresh cached datasets"):
         with st.spinner("Converting .slopes archives..."):
             rebuild_data()
